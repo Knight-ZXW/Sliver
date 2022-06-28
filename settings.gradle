@@ -1,0 +1,22 @@
+pluginManagement {
+    repositories {
+
+        gradlePluginPortal()
+        maven { setUrl("https://maven.aliyun.com/repository/public") }
+        maven { setUrl("https://maven.aliyun.com/repository/google") }
+        google()
+        mavenCentral()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        maven { setUrl("https://maven.aliyun.com/repository/public") }
+        maven { setUrl("https://maven.aliyun.com/repository/google") }
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "Sliver"
+include ':app'
+include ':sliver'
