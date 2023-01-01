@@ -1,49 +1,44 @@
-#ifndef SLIVER_FAKE_STACK_VISITOR_H_
-#define SLIVER_FAKE_STACK_VISITOR_H_
+//
+// Created by knight-zxw on 2022/12/29.
+//
+
+#ifndef KB_STACKVISITOR_H_
+#define KB_STACKVISITOR_H_
 
 #include "shadow_frame.h"
+namespace kbArt {
+const size_t STRUCT_COMPAT = sizeof(size_t) * 200;
 
-const size_t STRUCT_COMPAT= sizeof(size_t) * 126;
-/**
- *
- */
 class StackVisitor {
-public:
-    // This enum defines a flag to control whether inlined frames are included
-    // when walking the stack.
-    enum class StackWalkKind {
-        kIncludeInlinedFrames,
-        kSkipInlinedFrames,
-    };
+ public:
+  enum class StackWalkKind {
+    kIncludeInlinedFrames,
+    kSkipInlinedFrames
+  };
 
-    virtual ~StackVisitor() {}
+  virtual ~StackVisitor() {};
 
-    virtual bool VisitFrame() = 0;
+  // Return 'true' if we should continue to visit more frames, 'false' to stop.
+  virtual bool VisitFrame() = 0;
 
-    void *thread_ = nullptr;
-    const StackWalkKind walkKind = StackWalkKind::kIncludeInlinedFrames;
-    ShadowFrame *cur_shadow_frame = nullptr;
-    void **cur_quick_frame_ = nullptr;
-//    uintptr_t cur_quick_frame_pc_ = 0;
-//    const void *cur_oat_quick_method_header_ = nullptr;
-//    // Lazily computed, number of frames in the stack.
-//    size_t num_frames_ = 0;
-//    // Depth of the frame we're currently at.
-//    size_t cur_depth_ =0;
+  void *thread_ = nullptr;
+  const StackWalkKind walk_kind_ = StackWalkKind::kIncludeInlinedFrames;
+  ShadowFrame *cur_shadow_frame_ = nullptr;
+  void **cur_quick_frame_ = nullptr;
 
-    //开辟一个足够大的内存空间 用于存在其他变量
-    char param[STRUCT_COMPAT] ={};
-public:
-    void *GetMethod() {
-        if (cur_shadow_frame != nullptr) {
-            return cur_shadow_frame->method;
-        } else if (cur_quick_frame_ != nullptr) {
-            return *cur_quick_frame_;
-        }
-        return nullptr;
+  //保证有足够的空间存放其他变量; detail see:
+  //https://cs.android.com/android/platform/superproject/+/master:art/runtime/stack.h
+  char param[STRUCT_COMPAT]={};
+ public:
+  void *GetMethod(){
+    if (cur_shadow_frame_!= nullptr){
+      return cur_shadow_frame_->method;
+    } else if (cur_quick_frame_!= nullptr){
+      return *cur_quick_frame_;
     }
-
+    return nullptr;
+  }
 };
+}
 
-
-#endif
+#endif //KB_STACKVISITOR_H_

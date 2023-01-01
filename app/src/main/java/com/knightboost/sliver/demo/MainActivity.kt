@@ -4,14 +4,14 @@ import android.os.*
 import android.util.Log
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
-import com.knightboost.sliver.NativeLib
+import com.knightboost.sliver.Sliver
 import java.lang.Thread.sleep
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Sliver.init();
         setContentView(R.layout.activity_main)
-        NativeLib.doNothing()
 
         //模拟真实的APP环境
         for (i in 1..200){
@@ -29,16 +29,22 @@ class MainActivity : AppCompatActivity() {
             .setOnClickListener {
                 val thread = Thread {
                     val thread = Looper.getMainLooper().thread
-                    val threadNativePeer = NativeLib.getThreadNativePeer(thread)
+                    val nativePeer = Sliver.getNativePeer(thread);
 
                     while (true) {
                         sleep(10)
                         val t1 = SystemClock.elapsedRealtimeNanos()
-                        NativeLib.trace(thread,threadNativePeer);
-                        val t2 = SystemClock.elapsedRealtimeNanos()
                         var stackTrace = thread.stackTrace
+                        val t2 = SystemClock.elapsedRealtimeNanos()
+                        val methodFrames = Sliver.getMethodFrames(thread,nativePeer)
                         val t3 = SystemClock.elapsedRealtimeNanos()
-                        Log.e("zxw", "通过StackVisitor方式耗时 ${t2 - t1}, 通过 Thread.getStackTrace耗时 ${t3 - t2}")
+                        val stackTraceBySliver = Sliver.prettyMethods(methodFrames);
+                        val t4 = SystemClock.elapsedRealtimeNanos()
+                        Log.e("zxw",
+                            "thread.getStackTrace耗时 ${t2 - t1}, " +
+                                    "通过 Sliver获取 1阶段耗时 ${t3-t2}"+
+                                    "通过 Sliver获取 2阶段耗时 ${t4-t3}"
+                        )
                     }
                 }
                 thread.start()

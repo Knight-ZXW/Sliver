@@ -1,43 +1,36 @@
-#include "./art/stackvisitor.h"
-#include "sliver_log.h"
-#include "art/art.h"
-#include "art/art_method.h"
+//
+// Created by knight-zxw on 2022/12/31.
+//
+#include "stackvisitor.h"
+#include "art.h"
+#include "art_method.h"
+#include "logger.h"
+using namespace kbArt;
+class FetchStackVisitor : public StackVisitor {
 
-class FetchStackTraceVisitorR : public StackVisitor {
+  bool VisitFrame() override {
+    void *method = GetMethod();
 
-    bool VisitFrame() override {
-        void *method = GetMethod();
-
-        if (method == nullptr) {
-            //should never happen
-            return false;
-        }
-        auto *artMethod = static_cast<ArtMethod *>(method);
-        if (artMethod->IsRuntimeMethod()){
-            LOGV("this method is runtimeMethod,so we should ignore it");
-        }
-        //TODO 进行异步 pretty操作
-        const std::string &methodSignature = ArtHelper::PrettyMethod(method, true);
-        LOGV("method descriptor is -> %s",methodSignature.c_str());
-        if (StackVisitorCallback!= nullptr){
-            return StackVisitorCallback(method,StackVisitorData);
-        }
-        return true;
+    auto *artMethod = static_cast<ArtMethod *>(method);
+    if (artMethod == nullptr || artMethod->IsRuntimeMethod()){
+      return true;
     }
-
-public:
-    FetchStackTraceVisitorR(void *thread, void *data, bool (*callback)(void *, void *)){
-        this->thread_ = thread;
-        this->StackVisitorCallback = callback;
-        this->frameData =data;
+    if (StackVisitorCallback!= nullptr){
+      return StackVisitorCallback(artMethod,visitorData);
     }
+    return true;
+  }
 
-private:
-    bool (*StackVisitorCallback)(void *method, void *data) = nullptr;
-    void *StackVisitorData = nullptr;
-    void* frameData;
+ public:
+  FetchStackVisitor(void *thread,
+                    void* visitorData,
+                    bool (*callback)(ArtMethod *,void* visitorData)){
+    this->thread_ = thread;
+    this->StackVisitorCallback = callback;
+    this->visitorData = visitorData;
+  }
+
+ private:
+  bool (*StackVisitorCallback)(ArtMethod *art_method,void* visitorData) = nullptr;
+  void* visitorData = nullptr;
 };
-
-
-
-

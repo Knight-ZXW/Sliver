@@ -1,126 +1,150 @@
+//
+// Created by Administrator on 2022/12/28.
+// Email: nimdanoob@163.com
+//
+
+#include "art.h"
+#include "logger.h"
 #include <vector>
 #include <string>
 #include <cstdlib>
 #include <sys/system_properties.h>
-#include <jni.h>
-#include <dlfcn.h>
-#include <asm-generic/fcntl.h>
-#include <fstream>
-#include <iostream>
-#include <fcntl.h>
-#include <unistd.h>
+#include "xdl.h"
+#include "art_util.h"
 
-#include "android/log.h"
-#include "../sliver_log.h"
-#include "../fake_dlfcn.h"
-#include "art.h"
-#include "art_method.h"
-#include "art_thread.h"
-#include "stackvisitor.h"
-
-#define ANDROID_R_API 30
-#define MAX_SEARCH_LEN 2000
-
-class FetchStackTraceVisitorR;
-
+namespace kbArt {
 void *ArtHelper::runtime_instance_ = nullptr;
 int ArtHelper::api = 0;
 
+static WalkStack_t walk_stack = nullptr;
+
+static SuspendThreadByPeer_t suspend_thread_by_peer = nullptr;
+
+static SuspendThreadByThreadId_t suspend_thread_by_thread_id = nullptr;
+
+static Resume_t resume = nullptr;
+
+static PrettyMethod_t pretty_method = nullptr;
+
+//source from: https://github.com/tiann/FreeReflection/blob/master/library/src/main/cpp/art.cpp
 template<typename T>
-inline int find_offset(void *hay, int size, T needle) {
-    for (int i = 0; i < size; i += sizeof(T)) {
-        auto current = reinterpret_cast<T *>(reinterpret_cast<char *>(hay) + i);
-        if (*current == needle) {
-            return i;
-        }
-    }
+int findOffset(void *start, int regionStart, int regionEnd, T target) {
+  if (nullptr == start || regionStart < 0 || regionEnd <= 0) {
     return -1;
-}
-
-
- void (*WalkStack_)(StackVisitor *stack, bool include_transitions) = nullptr;
-
-
-uint32_t (*GetDexPc_)(void *stackVisitor, bool abortOnFailure);
-
-void *(*SuspendThreadByPeer_)(void *thread_list, jobject peer, SuspendReason suspendReason,
-                              bool *timed_out) = nullptr;
-
-//_ZN3art10ThreadList23SuspendThreadByThreadIdEjNS_13SuspendReasonEPb
-void *(*SuspendThreadByThreadId_)(void *thread_list, uint32_t thread_id, SuspendReason suspendReason, bool *time_out);
-
-bool (*Resume_)(void *thread_list, void *thread, SuspendReason suspendReason);
-
-static std::string (*PrettyMethod_)(void *art_method, bool with_signature) = nullptr;
-
-//_ZN3art7Monitor10FetchStateEPKNS_6ThreadEPNS_6ObjPtrINS_6mirror6ObjectEEEPj
-//ref: https://cs.android.com/android/platform/superproject/+/master:art/runtime/monitor.h;l=112?q=FetchState&sq=&ss=android%2Fplatform%2Fsuperproject
-void (*FetchState_)(void *thread, void *monitor_object, uint32_t *lock_owner_tid);
-
-
-void ArtHelper::init(JNIEnv *env, int api) {
-    ArtHelper::api = api;
-    JavaVM *javaVM;
-    env->GetJavaVM(&javaVM);
-    auto *javaVMExt = (JavaVMExt *) javaVM;
-    void *runtime = javaVMExt->runtime;
-    LOGV("runtime ptr: %p, vmExtPtr: %p", runtime, javaVMExt);
-
-    if (api < ANDROID_R_API) {
-        runtime_instance_ = runtime;
-    } else {
-        int vm_offset = find_offset(runtime, MAX_SEARCH_LEN, javaVM);
-        runtime_instance_ = reinterpret_cast<void *>(reinterpret_cast<char *>(runtime)
-                                                     + vm_offset - offsetof(PartialRuntimeR, java_vm_));
+  }
+  char *c_start = reinterpret_cast<char *>(start);
+  for (int i = regionStart; i < regionEnd; i += 4) {
+    T *current_value = reinterpret_cast<T *>(c_start + i);
+    if (target == *current_value) {
+      LOGE("artHelper", "find target %p", current_value);
+      return i;
     }
-    initMethods();
+  }
+  return -1;
 }
 
+//int dl_iterate_callback(dl_phdr_info *info, size_t size, void *data) {
+//  // find libart
+//  if (strstr(info->dlpi_name, "libart.so")) {
+//    libart = info->dlpi_name;
+//  }
+//  return 0;
+//}
 
-void ArtHelper::initMethods() {
-    void *handle = dlopen_ex("libart.so", RTLD_NOW);
+static int load_symbols() {
+  LOGV("ArtHelper", "start load_symbols");
+  void *handle = xdl_open("/apex/com.android.art/lib64/libart.so",
+                          XDL_TRY_FORCE_LOAD);
+  LOGV("ArtHelper", "handle is %p", handle);
 
-    WalkStack_ = reinterpret_cast<void (*)(StackVisitor *,bool )>(dlsym_ex(handle,
-                                                    "_ZN3art12StackVisitor9WalkStackILNS0_16CountTransitionsE0EEEvb"));
-    GetDexPc_ = reinterpret_cast<uint32_t (*)(void *, bool)>(dlsym_ex(handle, "_ZNK3art12StackVisitor8GetDexPcEb"));
-    SuspendThreadByPeer_ = reinterpret_cast<void *(*)(void *, jobject, SuspendReason, bool *)>(dlsym_ex(handle, "_ZN3art10ThreadList19SuspendThreadByPeerEP8_jobjectbNS_13SuspendReasonEPb"));
-    SuspendThreadByThreadId_ = reinterpret_cast<void *(*)(void *, uint32_t, SuspendReason, bool *)>(dlsym_ex(handle, "_ZN3art10ThreadList23SuspendThreadByThreadIdEjNS_13SuspendReasonEPb"));
+  walk_stack = reinterpret_cast<WalkStack_t>(xdl_dsym(handle,
+                                                      "_ZN3art12StackVisitor9WalkStackILNS0_16CountTransitionsE0EEEvb",
+                                                      nullptr));
+  if (walk_stack == nullptr) {
+    return -1;
+  }
 
-    Resume_ = reinterpret_cast<bool (*)(void *, void *, SuspendReason)>(dlsym_ex(handle, "_ZN3art10ThreadList6ResumeEPNS_6ThreadENS_13SuspendReasonE"));
-    PrettyMethod_ = reinterpret_cast<std::string (*)(void *, bool)>(dlsym_ex(handle, "_ZN3art9ArtMethod12PrettyMethodEb"));
+  suspend_thread_by_peer =
+      reinterpret_cast<SuspendThreadByPeer_t>(xdl_dsym(handle,
+                                                       "_ZN3art10ThreadList19SuspendThreadByPeerEP8_jobjectbNS_13SuspendReasonEPb",
+                                                       nullptr));
+  if (suspend_thread_by_peer == nullptr) {
+    return -1;
+  }
+  suspend_thread_by_thread_id =
+      reinterpret_cast<SuspendThreadByThreadId_t>(xdl_dsym(handle,
+                                                           "_ZN3art10ThreadList23SuspendThreadByThreadIdEjNS_13SuspendReasonEPb",
+                                                           nullptr));
+  if (suspend_thread_by_thread_id == nullptr) {
+    return -1;
+  }
+
+  resume = reinterpret_cast<Resume_t>(xdl_dsym(handle,
+                                               "_ZN3art10ThreadList6ResumeEPNS_6ThreadENS_13SuspendReasonE",
+                                               nullptr));
+  if (resume == nullptr) {
+    return -1;
+  }
+
+  pretty_method = reinterpret_cast<PrettyMethod_t>(xdl_dsym(handle,
+                                                            "_ZN3art9ArtMethod12PrettyMethodEb",
+                                                            nullptr));
+  if (pretty_method == nullptr) {
+    return -1;
+  }
+  return 1;
 }
 
-void ArtHelper::StackVisitorWalkStack(StackVisitor *visitor, bool include_transitions) {
-    WalkStack_(visitor, include_transitions);
-}
+int ArtHelper::init(JNIEnv *env) {
+  char api_level_str[5];
+  __system_property_set("ro.build.version.sdk", api_level_str);
+  int api_level = atoi(api_level_str);
+  ArtHelper::api = api_level;
+  JavaVM *javaVM;
+  env->GetJavaVM(&javaVM);
 
-std::string ArtHelper::PrettyMethod(void *art_method, bool with_signature) {
-    return PrettyMethod_(art_method, with_signature);
-}
+  auto *javaVMExt = reinterpret_cast<JavaVMExt *>(javaVM);
+  void *runtime = javaVMExt->runtime;
 
+  LOGV("ArtHelper", "runtime ptr: %p", runtime);
+  const int MAX = 2000;
+  //找到javaVmExt在 Runtime中的偏移地址
+  int offsetOfVmExt = findOffset(runtime, 0, MAX, javaVMExt);
+  LOGV("ArtHelper", "offsetOfVmExt: %d", offsetOfVmExt);
+  if (offsetOfVmExt < 0) {
+    return -1;
+  }
+  ArtHelper::runtime_instance_ =
+      reinterpret_cast<char *>(runtime) + offsetOfVmExt - offsetof(PartialRuntime, java_vm_);
+  load_symbols();
+  return 1;
 
-void *ArtHelper::SuspendThreadByPeer(jobject peer, SuspendReason suspendReason, bool *timed_out) {
-    return SuspendThreadByPeer_(ArtHelper::getThreadList(), peer, suspendReason, timed_out);
-}
-
-void *ArtHelper::SuspendThreadByThreadId(uint32_t threadId, SuspendReason suspendReason, bool *timed_out) {
-    return SuspendThreadByThreadId_(ArtHelper::getThreadList(),threadId, suspendReason, timed_out);
-}
-
-bool ArtHelper::Resume(void *thread, SuspendReason suspendReason) {
-    return Resume_(ArtHelper::getThreadList(), thread, suspendReason);
 }
 
 void *ArtHelper::getThreadList() {
-    if (runtime_instance_ == nullptr || api < ANDROID_R_API) {
-        return nullptr;
-    }
-    auto *runtimeR = (PartialRuntimeR *) runtime_instance_;
-    return runtimeR->thread_list_;
+  return reinterpret_cast<PartialRuntime *>(runtime_instance_)->thread_list_;
 }
 
+void *ArtHelper::suspendThreadByPeer(jobject peer, SuspendReason suspendReason, bool *timed_out) {
+  return suspend_thread_by_peer(ArtHelper::getThreadList(), peer, suspendReason, timed_out);
+}
 
+void *ArtHelper::SuspendThreadByThreadId(uint32_t threadId,
+                                         SuspendReason suspendReason,
+                                         bool *timed_out) {
+  void *thread_list = ArtHelper::getThreadList();
+  return suspend_thread_by_thread_id(thread_list, threadId, suspendReason, timed_out);
+}
 
+bool ArtHelper::Resume(void *thread, SuspendReason suspendReason) {
+  return resume(ArtHelper::getThreadList(), thread, suspendReason);
+}
+std::string ArtHelper::PrettyMethod(void *art_method, bool with_signature) {
+  return pretty_method(art_method, with_signature);
+}
 
+void ArtHelper::StackVisitorWalkStack(StackVisitor *visitor, bool include_transitions) {
+  walk_stack(visitor, include_transitions);
+}
 
-
+}

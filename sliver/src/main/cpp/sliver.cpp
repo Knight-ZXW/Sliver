@@ -1,50 +1,90 @@
 #include <jni.h>
-#include <string>
-#include "android/log.h"
-#include "sliver_log.h"
+#include "art.h"
 #include "fetch_stack_visitor.cpp"
-#include "./art/art.h"
-#include "art/art_thread.h"
+#include "vector"
+using namespace kbArt;
 
-static int api_level;
+JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+  JNIEnv *env = nullptr;
+  if (vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) != JNI_OK) {
+    return -1;
+  }
+  ArtHelper::init(env);
+//  LOGE("sliver","init success");
+  return JNI_VERSION_1_6;
+}
 
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
-    JNIEnv *env = NULL;
-
-    LOGV("JNI_OnLoad");
-
-    if (vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
-        return -1;
-    }
-    char api_level_str[5];
-    __system_property_get("ro.build.version.sdk", api_level_str);
-    api_level = atoi(api_level_str);
-    LOGV("api level: %d", api_level);
-    ArtHelper::init(env, api_level);
-    ArtHelper::initMethods();
-    return JNI_VERSION_1_6;
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_knightboost_sliver_Sliver_nativeGetStackTrace(JNIEnv *env,
+                                                       jclass clazz,
+                                                       jobject threadPeer,
+                                                       jlong native_peer) {
+  auto *tid_p = reinterpret_cast<uint32_t *>(native_peer + THREAD_ID_OFFSET);
+  bool timeOut;
+  void *thread = ArtHelper::SuspendThreadByThreadId(*tid_p,
+                                                    SuspendReason::kForUserCode,
+                                                    &timeOut);
+  LOGE("sliver", "SuspendThreadByThreadId %d", *tid_p);
+  FetchStackVisitor visitor(thread, nullptr, nullptr);
+  ArtHelper::StackVisitorWalkStack(&visitor, false);
+  ArtHelper::Resume(thread, SuspendReason::kForUserCode);
 }
 
 
 extern "C"
-JNIEXPORT void JNICALL
-Java_com_knightboost_sliver_NativeLib_traceStack(JNIEnv *env, jclass clazz,
-                                                 jobject threadPeer,jlong native_peer) {
+JNIEXPORT jlongArray JNICALL
+Java_com_knightboost_sliver_Sliver_nativeGetMethodStackTrace(JNIEnv *env,
+                                                             jclass clazz,
+                                                             jobject threadPeer,
+                                                             jlong native_peer) {
+  auto *tid_p = reinterpret_cast<uint32_t *>(native_peer + THREAD_ID_OFFSET);
+  bool timeOut;
+  void *thread = ArtHelper::SuspendThreadByThreadId(*tid_p,
+                                                    SuspendReason::kForUserCode,
+                                                    &timeOut);
+  std::vector<std::uintptr_t> stack_methods;
+  auto f = [](ArtMethod *method, void *visitorData) -> bool {
+    auto *methods = reinterpret_cast<std::vector<std::uintptr_t> *>(visitorData);
+    methods->push_back(reinterpret_cast<std::uintptr_t>(&*method));
+    return true;
+  };
 
-    bool timeOut;
-//    LOGV("try suspend thread");
-    auto *tid_p  = reinterpret_cast<uint32_t *>(native_peer + THREAD_ID_OFFSET);
+  FetchStackVisitor visitor(thread, &stack_methods, f);
+  ArtHelper::StackVisitorWalkStack(&visitor, false);
+  ArtHelper::Resume(thread, SuspendReason::kForUserCode);
 
-    void *thread = ArtHelper::SuspendThreadByThreadId(*tid_p, SuspendReason::kForUserCode, &timeOut);
-    //使用 SuspendThreadByPeer 的方式会出现崩溃，
-    // 而如果在调用前 打印一下任意日志 就不会崩溃，不清楚是为什么
-//    void *thread = ArtHelper::SuspendThreadByPeer(threadPeer, SuspendReason::kForUserCode, &timeOut);
+  std::vector<double> results(4);
+  jdoubleArray output = env->NewDoubleArray(4);
+  env->SetDoubleArrayRegion(output, 0, 4, &results[0]);
 
-//    LOGV("suspend Thread Success, begin to visitor stack");
-    FetchStackTraceVisitorR visitor = FetchStackTraceVisitorR(thread, nullptr, nullptr);
-    ArtHelper::StackVisitorWalkStack(&visitor, false);
-    ArtHelper::Resume(thread, SuspendReason::kInternal);
-//    LOGV("resume Thread %p, begin to visitor stack", &resumeResult);
+  jlongArray addresses = env->NewLongArray((jsize) stack_methods.size());
+
+  jlong *destElements = env->GetLongArrayElements(addresses, nullptr);
+  for (int i = 0; i < stack_methods.size(); i++) {
+    destElements[i] =(jlong) stack_methods[i];
+  }
+  env->ReleaseLongArrayElements(addresses, destElements, 0);
+  return addresses;
 
 }
 
+extern "C"
+JNIEXPORT jobjectArray JNICALL
+Java_com_knightboost_sliver_Sliver_prettyMethods(JNIEnv *env, jclass clazz, jlongArray methods) {
+  jlong *methods_ptr = env->GetLongArrayElements(methods, nullptr);
+  jsize size = env->GetArrayLength(methods);
+  jobjectArray ret = env->NewObjectArray(size, env->FindClass("java/lang/String"),
+                                         nullptr);
+
+  for (int i = 0; i < size; i++) {
+    const std::string
+        &pretty_method = ArtHelper::PrettyMethod(reinterpret_cast<void *>(methods_ptr[i]), true);
+    pretty_method.c_str();
+    jstring frame = env->NewStringUTF(pretty_method.c_str());
+    env->SetObjectArrayElement(ret, i, frame);
+    env->DeleteLocalRef(frame);
+  }
+  return ret;
+
+}
