@@ -12,4 +12,10 @@
         android:layout_height="wrap_content"
         android:text="采集主线程堆栈"/>
 
+    <Button
+        android:id="@+id/btn_lock_monitor_test"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="采集其他线程-锁等待信息测试"/>
+
 </LinearLayout>

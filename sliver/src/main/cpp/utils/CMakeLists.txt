@@ -5,24 +5,27 @@ PROJECT(utils)
 SET(TARGET utils)
 
 SET(
-  ${TARGET}_SOURCE_FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/threads.cpp
+        ${TARGET}_SOURCE_FILES
+
+        ${CMAKE_CURRENT_SOURCE_DIR}/threads.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/time_utils.cpp
+
 )
 
 ADD_LIBRARY(
-  ${TARGET}
-  STATIC
-  ${${TARGET}_SOURCE_FILES}
+        ${TARGET}
+        STATIC
+        ${${TARGET}_SOURCE_FILES}
 )
 
 TARGET_INCLUDE_DIRECTORIES(
-  ${TARGET}
-  PUBLIC include
+        ${TARGET}
+        PUBLIC include
 )
 
 FIND_LIBRARY(log-lib log)
 
 TARGET_LINK_LIBRARIES(
-  ${TARGET}
-  PUBLIC ${log-lib}
+        ${TARGET}
+        PUBLIC ${log-lib}
 )

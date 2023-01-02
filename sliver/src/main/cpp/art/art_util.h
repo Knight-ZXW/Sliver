@@ -32,6 +32,8 @@ typedef bool (*Resume_t)(void *thread_list, void *thread, SuspendReason suspendR
 
 typedef std::string (*PrettyMethod_t)(void *art_method, bool with_signature);
 
+typedef ThreadState (*FetchState_t)(void *thread,/* out */void* monitor_object,/* out */uint32_t* lock_owner_tid);
+
 }
 
 #endif //KB_ART_UTIL_H_

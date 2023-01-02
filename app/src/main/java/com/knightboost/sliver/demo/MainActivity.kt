@@ -8,6 +8,7 @@ import com.knightboost.sliver.Sliver
 import java.lang.Thread.sleep
 
 class MainActivity : AppCompatActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Sliver.init();
@@ -25,6 +26,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }).start()
         }
+
+
         findViewById<View>(R.id.btn_trace_mainThread)
             .setOnClickListener {
                 val thread = Thread {
@@ -41,14 +44,26 @@ class MainActivity : AppCompatActivity() {
                         val stackTraceBySliver = Sliver.prettyMethods(methodFrames);
                         val t4 = SystemClock.elapsedRealtimeNanos()
                         Log.e("zxw",
-                            "thread.getStackTrace耗时 ${t2 - t1}, " +
-                                    "通过 Sliver获取 1阶段耗时 ${t3-t2}"+
-                                    "通过 Sliver获取 2阶段耗时 ${t4-t3}"
+                            "thread.getStackTrace耗时 ${ (t2 - t1)/1000/1000f} ms, " +
+                                    "通过 Sliver获取 1阶段耗时 ${ (t3-t2)/1000/1000f} ms"+
+                                    "通过 Sliver获取 2阶段耗时 ${ (t4-t3)/1000/1000f} ms"
                         )
                     }
                 }
                 thread.start()
             }
+
+        findViewById<View>(R.id.btn_lock_monitor_test).setOnClickListener {
+            val targetThread = LockThreadCase.targetThread();
+            Thread.sleep(1000)
+            Sliver.getSackTrace(targetThread);
+            Thread.sleep(1000)
+            Sliver.getSackTrace(targetThread);
+            Thread.sleep(1000)
+            Sliver.getSackTrace(targetThread);
+
+
+        }
     }
 
     override fun onResume() {

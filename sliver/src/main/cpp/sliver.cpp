@@ -2,7 +2,10 @@
 #include "art.h"
 #include "fetch_stack_visitor.cpp"
 #include "vector"
+#include <chrono>
+#include "utils/time_utils.h"
 using namespace kbArt;
+using namespace kb;
 
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
   JNIEnv *env = nullptr;
@@ -15,29 +18,12 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
 }
 
 extern "C"
-JNIEXPORT void JNICALL
-Java_com_knightboost_sliver_Sliver_nativeGetStackTrace(JNIEnv *env,
-                                                       jclass clazz,
-                                                       jobject threadPeer,
-                                                       jlong native_peer) {
-  auto *tid_p = reinterpret_cast<uint32_t *>(native_peer + THREAD_ID_OFFSET);
-  bool timeOut;
-  void *thread = ArtHelper::SuspendThreadByThreadId(*tid_p,
-                                                    SuspendReason::kForUserCode,
-                                                    &timeOut);
-  LOGE("sliver", "SuspendThreadByThreadId %d", *tid_p);
-  FetchStackVisitor visitor(thread, nullptr, nullptr);
-  ArtHelper::StackVisitorWalkStack(&visitor, false);
-  ArtHelper::Resume(thread, SuspendReason::kForUserCode);
-}
-
-
-extern "C"
 JNIEXPORT jlongArray JNICALL
 Java_com_knightboost_sliver_Sliver_nativeGetMethodStackTrace(JNIEnv *env,
                                                              jclass clazz,
                                                              jobject threadPeer,
                                                              jlong native_peer) {
+
   auto *tid_p = reinterpret_cast<uint32_t *>(native_peer + THREAD_ID_OFFSET);
   bool timeOut;
   void *thread = ArtHelper::SuspendThreadByThreadId(*tid_p,

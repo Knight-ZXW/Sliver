@@ -30,7 +30,7 @@ class StackVisitor {
   //https://cs.android.com/android/platform/superproject/+/master:art/runtime/stack.h
   char param[STRUCT_COMPAT]={};
  public:
-  void *GetMethod(){
+  inline void *GetMethod(){
     if (cur_shadow_frame_!= nullptr){
       return cur_shadow_frame_->method;
     } else if (cur_quick_frame_!= nullptr){

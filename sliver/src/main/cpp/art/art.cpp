@@ -25,6 +25,7 @@ static SuspendThreadByThreadId_t suspend_thread_by_thread_id = nullptr;
 static Resume_t resume = nullptr;
 
 static PrettyMethod_t pretty_method = nullptr;
+static FetchState_t fetchState = nullptr;
 
 //source from: https://github.com/tiann/FreeReflection/blob/master/library/src/main/cpp/art.cpp
 template<typename T>
@@ -92,6 +93,13 @@ static int load_symbols() {
   if (pretty_method == nullptr) {
     return -1;
   }
+
+  fetchState = reinterpret_cast<FetchState_t>(xdl_dsym(handle,
+                                                       "_ZN3art7Monitor10FetchStateEPKNS_6ThreadEPNS_6ObjPtrINS_6mirror6ObjectEEEPj",
+                                                       nullptr));
+  if (fetchState == nullptr) {
+    return -1;
+  }
   return 1;
 }
 
@@ -115,7 +123,8 @@ int ArtHelper::init(JNIEnv *env) {
     return -1;
   }
   ArtHelper::runtime_instance_ =
-      reinterpret_cast<char *>(runtime) + offsetOfVmExt - offsetof(PartialRuntime, java_vm_);
+      reinterpret_cast<char *>(runtime) + offsetOfVmExt -
+          offsetof(PartialRuntime, java_vm_);
   load_symbols();
   return 1;
 
@@ -125,7 +134,8 @@ void *ArtHelper::getThreadList() {
   return reinterpret_cast<PartialRuntime *>(runtime_instance_)->thread_list_;
 }
 
-void *ArtHelper::suspendThreadByPeer(jobject peer, SuspendReason suspendReason, bool *timed_out) {
+void *
+ArtHelper::suspendThreadByPeer(jobject peer, SuspendReason suspendReason, bool *timed_out) {
   return suspend_thread_by_peer(ArtHelper::getThreadList(), peer, suspendReason, timed_out);
 }
 
@@ -139,12 +149,17 @@ void *ArtHelper::SuspendThreadByThreadId(uint32_t threadId,
 bool ArtHelper::Resume(void *thread, SuspendReason suspendReason) {
   return resume(ArtHelper::getThreadList(), thread, suspendReason);
 }
+
 std::string ArtHelper::PrettyMethod(void *art_method, bool with_signature) {
   return pretty_method(art_method, with_signature);
 }
 
 void ArtHelper::StackVisitorWalkStack(StackVisitor *visitor, bool include_transitions) {
   walk_stack(visitor, include_transitions);
+}
+
+ThreadState ArtHelper::FetchState(void *thread, void *monitor_object, uint32_t *lock_owner_tid) {
+  return fetchState(thread,monitor_object,lock_owner_tid);
 }
 
 }

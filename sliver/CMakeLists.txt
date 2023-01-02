@@ -70,9 +70,8 @@ find_package(xdl REQUIRED CONFIG)
 
 target_link_libraries( # Specifies the target library.
         sliver
-        fastlog
-        # Links the target library to the log library
-        # included in the NDK.
         ${log-lib}
+        utils
+        fastlog
         xdl::xdl
         bytehook::bytehook)

@@ -65,7 +65,6 @@ public class Sliver {
 
     public static native String[] prettyMethods(long[] methods);
 
-    public static native void nativeGetStackTrace(Thread thread,long nativePeer);
 
     public static native long[] nativeGetMethodStackTrace(Thread thread, long nativePeer);
 

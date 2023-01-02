@@ -4,12 +4,8 @@
 
 #include <string>
 
-namespace bytedance {
-namespace utils {
-
+namespace kb {
 uint32_t GetThreadId();
-bool GetCurrentThreadName(std::string* name);
-void SetThreadName(const char* name);
-
-}  // namespace utils
-}  // namespace bytedance
+bool GetCurrentThreadName(std::string *name);
+void SetThreadName(const char *name);
+}  // namespace kb

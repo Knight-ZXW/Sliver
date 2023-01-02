@@ -25,6 +25,43 @@ enum class SuspendReason : char {
   kForUserCode,
 };
 
+enum class ThreadState: uint8_t {
+    // `kRunnable` was previously 67 but it is now set to 0 so that we do not need to extract
+    // flags from the thread's `state_and_flags` to check for any flag being set while Runnable.
+    // Note: All atomic accesses for a location should use the same data size,
+    // so the incorrect old approach of reading just 16 bits has been rewritten.
+
+    kTerminated = 66,                 // TERMINATED     TS_ZOMBIE    Thread.run has returned, but Thread* still around
+    kRunnable = 0,                    // RUNNABLE       TS_RUNNING   runnable
+    kObsoleteRunnable = 67,           // ---            ---          obsolete value
+    kTimedWaiting = 68,               // TIMED_WAITING  TS_WAIT      in Object.wait() with a timeout
+    kSleeping,                        // TIMED_WAITING  TS_SLEEPING  in Thread.sleep()
+    kBlocked,                         // BLOCKED        TS_MONITOR   blocked on a monitor
+    kWaiting,                         // WAITING        TS_WAIT      in Object.wait()
+    kWaitingForLockInflation,         // WAITING        TS_WAIT      blocked inflating a thin-lock
+    kWaitingForTaskProcessor,         // WAITING        TS_WAIT      blocked waiting for taskProcessor
+    kWaitingForGcToComplete,          // WAITING        TS_WAIT      blocked waiting for GC
+    kWaitingForCheckPointsToRun,      // WAITING        TS_WAIT      GC waiting for checkpoints to run
+    kWaitingPerformingGc,             // WAITING        TS_WAIT      performing GC
+    kWaitingForDebuggerSend,          // WAITING        TS_WAIT      blocked waiting for events to be sent
+    kWaitingForDebuggerToAttach,      // WAITING        TS_WAIT      blocked waiting for debugger to attach
+    kWaitingInMainDebuggerLoop,       // WAITING        TS_WAIT      blocking/reading/processing debugger events
+    kWaitingForDebuggerSuspension,    // WAITING        TS_WAIT      waiting for debugger suspend all
+    kWaitingForJniOnLoad,             // WAITING        TS_WAIT      waiting for execution of dlopen and JNI on load code
+    kWaitingForSignalCatcherOutput,   // WAITING        TS_WAIT      waiting for signal catcher IO to complete
+    kWaitingInMainSignalCatcherLoop,  // WAITING        TS_WAIT      blocking/reading/processing signals
+    kWaitingForDeoptimization,        // WAITING        TS_WAIT      waiting for deoptimization suspend all
+    kWaitingForMethodTracingStart,    // WAITING        TS_WAIT      waiting for method tracing to start
+    kWaitingForVisitObjects,          // WAITING        TS_WAIT      waiting for visiting objects
+    kWaitingForGetObjectsAllocated,   // WAITING        TS_WAIT      waiting for getting the number of allocated objects
+    kWaitingWeakGcRootRead,           // WAITING        TS_WAIT      waiting on the GC to read a weak root
+    kWaitingForGcThreadFlip,          // WAITING        TS_WAIT      waiting on the GC thread flip (CC collector) to finish
+    kNativeForAbort,                  // WAITING        TS_WAIT      checking other threads are not run on abort.
+    kStarting,                        // NEW            TS_WAIT      native thread started, not yet ready to run managed code
+    kNative,                          // RUNNABLE       TS_RUNNING   running in a JNI native method
+    kSuspended,                       // RUNNABLE       TS_RUNNING   suspended by GC or debugger
+};
+
 struct PartialRuntime {
   void *thread_list_;
 
@@ -68,6 +105,8 @@ class ArtHelper {
   static bool Resume(void *thread, SuspendReason suspendReason);
 
   static std::string PrettyMethod(void *art_method, bool with_signature);
+
+  static ThreadState FetchState(void* thread,void * monitor_object,uint32_t* lock_owner_tid);
 
  private:
   static void *runtime_instance_;

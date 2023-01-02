@@ -18,7 +18,7 @@ class ArtMethod final {
   // possible, e.g. after this method's class is linked. Such as when setting
   // verifier flags and single-implementation flag.
   //std::atomic<std::uint32_t> access_flags_;
-  uint32_t access_flags_;
+  std::atomic<uint32_t> access_flags_;
 
   /* Dex file fields. The defining dex file is available via declaring_class_->dex_cache_ */
 
@@ -39,6 +39,10 @@ class ArtMethod final {
     // Abstract methods: IMT index.
     uint16_t imt_index_;
   };
+
+  uint32_t GetAccessFlags() const {
+    return access_flags_.load(std::memory_order_relaxed);
+  }
 
   inline bool IsRuntimeMethod() const {
     return dex_method_index_ == kRuntimeMethodDexMethodIndex;
