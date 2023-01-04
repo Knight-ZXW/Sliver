@@ -1,9 +1,11 @@
 #include <jni.h>
 #include "art.h"
-#include "fetch_stack_visitor.cpp"
+#include "sliver/fetch_stack_visitor.h"
 #include "vector"
 #include <chrono>
 #include "utils/time_utils.h"
+#include "logger.h"
+#include "art_thread.h"
 using namespace kbArt;
 using namespace kb;
 
@@ -24,11 +26,24 @@ Java_com_knightboost_sliver_Sliver_nativeGetMethodStackTrace(JNIEnv *env,
                                                              jobject threadPeer,
                                                              jlong native_peer) {
 
-  auto *tid_p = reinterpret_cast<uint32_t *>(native_peer + THREAD_ID_OFFSET);
+  auto* thread = reinterpret_cast<Thread *>(native_peer);
+
   bool timeOut;
-  void *thread = ArtHelper::SuspendThreadByThreadId(*tid_p,
-                                                    SuspendReason::kForUserCode,
-                                                    &timeOut);
+
+  Thread *current_thread = Thread::current();
+
+  bool isSameThread = false;
+  if (current_thread == thread){
+    isSameThread = true;
+    LOGE("sliver","在当前线程获取调用栈");
+  }
+  if (!isSameThread){
+    ArtHelper::SuspendThreadByThreadId(thread->GetThreadId(),
+                                       SuspendReason::kForUserCode,
+                                       &timeOut);
+  }
+
+  
   std::vector<std::uintptr_t> stack_methods;
   auto f = [](ArtMethod *method, void *visitorData) -> bool {
     auto *methods = reinterpret_cast<std::vector<std::uintptr_t> *>(visitorData);
@@ -36,23 +51,27 @@ Java_com_knightboost_sliver_Sliver_nativeGetMethodStackTrace(JNIEnv *env,
     return true;
   };
 
-  FetchStackVisitor visitor(thread, &stack_methods, f);
+  FetchStackVisitor visitor(thread,
+                            &stack_methods,
+                            f);
   ArtHelper::StackVisitorWalkStack(&visitor, false);
-  ArtHelper::Resume(thread, SuspendReason::kForUserCode);
+
+  if (!isSameThread){
+    ArtHelper::Resume(thread, SuspendReason::kForUserCode);
+  }
 
   std::vector<double> results(4);
   jdoubleArray output = env->NewDoubleArray(4);
   env->SetDoubleArrayRegion(output, 0, 4, &results[0]);
 
-  jlongArray addresses = env->NewLongArray((jsize) stack_methods.size());
+  jlongArray methodArray = env->NewLongArray((jsize) stack_methods.size());
 
-  jlong *destElements = env->GetLongArrayElements(addresses, nullptr);
+  jlong *destElements = env->GetLongArrayElements(methodArray, nullptr);
   for (int i = 0; i < stack_methods.size(); i++) {
     destElements[i] =(jlong) stack_methods[i];
   }
-  env->ReleaseLongArrayElements(addresses, destElements, 0);
-  return addresses;
-
+  env->ReleaseLongArrayElements(methodArray, destElements, 0);
+  return methodArray;
 }
 
 extern "C"
@@ -60,6 +79,7 @@ JNIEXPORT jobjectArray JNICALL
 Java_com_knightboost_sliver_Sliver_prettyMethods(JNIEnv *env, jclass clazz, jlongArray methods) {
   jlong *methods_ptr = env->GetLongArrayElements(methods, nullptr);
   jsize size = env->GetArrayLength(methods);
+  //TODO cache StringClass
   jobjectArray ret = env->NewObjectArray(size, env->FindClass("java/lang/String"),
                                          nullptr);
 
@@ -71,6 +91,7 @@ Java_com_knightboost_sliver_Sliver_prettyMethods(JNIEnv *env, jclass clazz, jlon
     env->SetObjectArrayElement(ret, i, frame);
     env->DeleteLocalRef(frame);
   }
+  env->ReleaseLongArrayElements(methods,methods_ptr,0);
   return ret;
 
 }

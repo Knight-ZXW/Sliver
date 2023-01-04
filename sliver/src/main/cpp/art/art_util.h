@@ -17,6 +17,9 @@ namespace kbArt {
 #define ART_UTIL_LIBART_Q "/apex/com.android.runtime/lib64/libart.so"
 #define ART_UTIL_LIBART_R "/apex/com.android.art/lib64/libart.so"
 #endif
+
+
+
 typedef void (*WalkStack_t)(StackVisitor *stack_visitor, bool include_transitions);
 
 typedef void *(*SuspendThreadByPeer_t)(void *thread_list, jobject peer, SuspendReason suspendReason,
@@ -33,6 +36,8 @@ typedef bool (*Resume_t)(void *thread_list, void *thread, SuspendReason suspendR
 typedef std::string (*PrettyMethod_t)(void *art_method, bool with_signature);
 
 typedef ThreadState (*FetchState_t)(void *thread,/* out */void* monitor_object,/* out */uint32_t* lock_owner_tid);
+
+typedef uint64_t (*GetCpuMicroTime_t)(void* thread);
 
 }
 

@@ -16,16 +16,23 @@ class MainActivity : AppCompatActivity() {
 
         //模拟真实的APP环境
         for (i in 1..200){
-            Thread({
-                while (true){
-                    Thread.sleep(300)
-                    var f =1000;
-                    for (i in 1..1000){
-                         f = f/3;
+            Thread {
+                while (true) {
+                    sleep(300)
+                    var f = 1000;
+                    for (j in 1..1000) {
+                        f = j / 3;
                     }
                 }
-            }).start()
+            }.start()
         }
+
+        findViewById<View>(R.id.btn_trace_on_same_thread)
+            .setOnClickListener {
+                val methodFrames = Sliver.getMethodFrames(Looper.getMainLooper().thread)
+                val stackTraceBySliver = Sliver.prettyMethodsAsString(methodFrames);
+                Log.e("sliver","主线程采集主线程调用栈 \n$stackTraceBySliver")
+            }
 
 
         findViewById<View>(R.id.btn_trace_mainThread)

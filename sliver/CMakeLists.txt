@@ -34,7 +34,7 @@ aux_source_directory(src/main/cpp/art SRC_DIR_ART)
 include_directories(src/main/cpp/art)
 
 aux_source_directory(src/main/cpp/sliver SRC_DIR_Sliver)
-include_directories(${SRC_DIR_Sliver})
+include_directories(src/main/cpp/sliver)
 
 
 
@@ -47,7 +47,6 @@ add_library( # Sets the name of the library.
         ${SRC_DIR_Sliver}
         # Provides a relative path to your source file(s).
         src/main/cpp/sliver.cpp
-        src/main/cpp/fetch_stack_visitor.cpp
         )
 
 # Searches for a specified prebuilt library and stores the path as a

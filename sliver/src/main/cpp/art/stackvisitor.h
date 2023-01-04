@@ -7,6 +7,7 @@
 
 #include "shadow_frame.h"
 namespace kbArt {
+
 const size_t STRUCT_COMPAT = sizeof(size_t) * 200;
 
 class StackVisitor {
@@ -15,6 +16,13 @@ class StackVisitor {
     kIncludeInlinedFrames,
     kSkipInlinedFrames
   };
+
+ protected:
+  StackVisitor(void *thread, StackWalkKind walk_kind)
+      : walk_kind_(walk_kind),
+        thread_(thread) {}
+
+ public:
 
   virtual ~StackVisitor() {};
 
@@ -28,17 +36,18 @@ class StackVisitor {
 
   //保证有足够的空间存放其他变量; detail see:
   //https://cs.android.com/android/platform/superproject/+/master:art/runtime/stack.h
-  char param[STRUCT_COMPAT]={};
+  char param[STRUCT_COMPAT] = {};
  public:
-  inline void *GetMethod(){
-    if (cur_shadow_frame_!= nullptr){
+  inline void *GetMethod() {
+    if (cur_shadow_frame_ != nullptr) {
       return cur_shadow_frame_->method;
-    } else if (cur_quick_frame_!= nullptr){
+    } else if (cur_quick_frame_ != nullptr) {
       return *cur_quick_frame_;
     }
     return nullptr;
   }
 };
+
 }
 
 #endif //KB_STACKVISITOR_H_

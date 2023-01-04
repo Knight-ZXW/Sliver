@@ -26,6 +26,7 @@ static Resume_t resume = nullptr;
 
 static PrettyMethod_t pretty_method = nullptr;
 static FetchState_t fetchState = nullptr;
+static GetCpuMicroTime_t getCpuMicroTime = nullptr;
 
 //source from: https://github.com/tiann/FreeReflection/blob/master/library/src/main/cpp/art.cpp
 template<typename T>
@@ -97,6 +98,8 @@ static int load_symbols() {
   fetchState = reinterpret_cast<FetchState_t>(xdl_dsym(handle,
                                                        "_ZN3art7Monitor10FetchStateEPKNS_6ThreadEPNS_6ObjPtrINS_6mirror6ObjectEEEPj",
                                                        nullptr));
+  getCpuMicroTime = reinterpret_cast<GetCpuMicroTime_t>(xdl_dsym(handle,"_ZNK3art6Thread15GetCpuMicroTimeEv",
+                                                                 nullptr));
   if (fetchState == nullptr) {
     return -1;
   }
@@ -160,6 +163,11 @@ void ArtHelper::StackVisitorWalkStack(StackVisitor *visitor, bool include_transi
 
 ThreadState ArtHelper::FetchState(void *thread, void *monitor_object, uint32_t *lock_owner_tid) {
   return fetchState(thread,monitor_object,lock_owner_tid);
+}
+
+// Returns the thread-specific CPU-time clock in microseconds or -1 if unavailable.
+uint64_t ArtHelper::GetCpuMicroTime(void *thread) {
+  return getCpuMicroTime(thread);
 }
 
 }

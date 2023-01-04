@@ -4,13 +4,21 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     tools:context=".MainActivity">
 
     <Button
         android:id="@+id/btn_trace_mainThread"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="采集主线程堆栈"/>
+        android:text="采集主线程调用栈"/>
+
+    <Button
+        android:id="@+id/btn_trace_on_same_thread"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="在相同线程采集调用栈"
+        />
 
     <Button
         android:id="@+id/btn_lock_monitor_test"

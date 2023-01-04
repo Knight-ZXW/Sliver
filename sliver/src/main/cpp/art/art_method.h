@@ -4,6 +4,8 @@
 
 #ifndef KB_art_method_H_
 #define KB_art_method_H_
+
+#include "modifiers.h"
 namespace kbArt {
 class ArtMethod final {
  public:
@@ -47,6 +49,17 @@ class ArtMethod final {
   inline bool IsRuntimeMethod() const {
     return dex_method_index_ == kRuntimeMethodDexMethodIndex;
   }
+
+  // Returns true if the method is static, private, or a constructor.
+  bool IsDirect() const {
+    return IsDirect(GetAccessFlags());
+  }
+
+  static bool IsDirect(uint32_t access_flags) {
+    constexpr uint32_t direct = kAccStatic | kAccPrivate | kAccConstructor;
+    return (access_flags & direct) != 0;
+  }
+
 
 };
 
