@@ -34,14 +34,14 @@ class MainActivity : AppCompatActivity() {
                 Log.e("sliver","主线程采集主线程调用栈 \n$stackTraceBySliver")
             }
 
-
+        Build.VERSION_CODES.P
         findViewById<View>(R.id.btn_trace_mainThread)
             .setOnClickListener {
                 val thread = Thread {
                     val thread = Looper.getMainLooper().thread
                     val nativePeer = Sliver.getNativePeer(thread);
-
-                    while (true) {
+                    var i =0
+                    while (i<1000) {
                         sleep(10)
                         val t1 = SystemClock.elapsedRealtimeNanos()
                         var stackTrace = thread.stackTrace
@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
                                     "通过 Sliver获取 1阶段耗时 ${ (t3-t2)/1000/1000f} ms"+
                                     "通过 Sliver获取 2阶段耗时 ${ (t4-t3)/1000/1000f} ms"
                         )
+                        i++
                     }
                 }
                 thread.start()

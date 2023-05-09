@@ -14,9 +14,7 @@ namespace kbArt {
 
 //TODO 这里的偏移值 高低版本不一样， 目前只看了Android 12的,后面需要做下区分，版本兼容性
 // Offset of field Thread::tls32_.thin_lock_thread_id
-#define THREAD_ID_OFFSET 8
-
-#define TID_OFFSET 12
+#define THREAD_ID_OFFSET 12
 
 
 enum class SuspendReason : char {
@@ -64,7 +62,28 @@ enum class ThreadState : uint8_t {
   kSuspended,                       // RUNNABLE       TS_RUNNING   suspended by GC or debugger
 };
 
-struct PartialRuntime {
+struct PartialRuntimeP {
+  void *thread_list_;
+
+  void *intern_table_;
+
+  void *class_linker_;
+
+  void *signal_catcher_;
+
+  bool use_tombstoned_traces_;
+
+  // Location to which traces must be written on SIGQUIT. Only used if
+  // tombstoned_traces_ == false.
+  std::string stack_trace_file_;
+
+  void *java_vm_;
+
+  void *jit_;
+  void *jit_code_cache_;
+};
+
+struct PartialRuntimeR {
   void *thread_list_;
 
   void *intern_table_;
@@ -80,6 +99,26 @@ struct PartialRuntime {
   void *jit_;
   void *jit_code_cache_;
 };
+
+struct PartialRuntimeTiramisu {
+    void *thread_list_;
+
+    void *intern_table_;
+
+    void *class_linker_;
+
+    void *signal_catcher_;
+
+    void *small_lrt_allocator_;
+
+    void *jni_id_manager_;
+
+    void *java_vm_;
+
+    void *jit_;
+    void *jit_code_cache_;
+};
+
 
 struct JavaVMExt {
   void *functions;

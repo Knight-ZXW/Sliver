@@ -47,10 +47,7 @@ class Thread {
   inline uint32_t GetTid() {
     return tls32_.tid;
   }
-  inline static uint32_t GetThreadId(uintptr_t thread) {
-    return *reinterpret_cast<uint32_t *>(
-        thread + THREAD_ID_OFFSET);
-  }
+
 
   inline static Thread *current() {
     void* thread = __get_tls()[TLS_SLOT_ART_THREAD_SELF];

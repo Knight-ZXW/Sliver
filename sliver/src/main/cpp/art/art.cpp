@@ -28,6 +28,14 @@ static PrettyMethod_t pretty_method = nullptr;
 static FetchState_t fetchState = nullptr;
 static GetCpuMicroTime_t getCpuMicroTime = nullptr;
 
+static void *thread_list = nullptr;
+
+#define ANDROID_API_P 28
+#define ANDROID_API_Q 29
+#define ANDROID_API_R 30
+#define ANDROID_API_S 31
+#define ANDROID_API_TIRAMISU 33
+
 //source from: https://github.com/tiann/FreeReflection/blob/master/library/src/main/cpp/art.cpp
 template<typename T>
 int findOffset(void *start, int regionStart, int regionEnd, T target) {
@@ -68,7 +76,7 @@ static int load_symbols() {
 
   suspend_thread_by_peer =
       reinterpret_cast<SuspendThreadByPeer_t>(xdl_dsym(handle,
-                                                       "_ZN3art10ThreadList19SuspendThreadByPeerEP8_jobjectbNS_13SuspendReasonEPb",
+                                                       "_ZN3art10ThreadList19SuspendThreadByPeerEP8_jobjectNS_13SuspendReasonEPb",
                                                        nullptr));
   if (suspend_thread_by_peer == nullptr) {
     return -1;
@@ -98,8 +106,9 @@ static int load_symbols() {
   fetchState = reinterpret_cast<FetchState_t>(xdl_dsym(handle,
                                                        "_ZN3art7Monitor10FetchStateEPKNS_6ThreadEPNS_6ObjPtrINS_6mirror6ObjectEEEPj",
                                                        nullptr));
-  getCpuMicroTime = reinterpret_cast<GetCpuMicroTime_t>(xdl_dsym(handle,"_ZNK3art6Thread15GetCpuMicroTimeEv",
-                                                                 nullptr));
+  getCpuMicroTime =
+      reinterpret_cast<GetCpuMicroTime_t>(xdl_dsym(handle, "_ZNK3art6Thread15GetCpuMicroTimeEv",
+                                                   nullptr));
   if (fetchState == nullptr) {
     return -1;
   }
@@ -108,7 +117,7 @@ static int load_symbols() {
 
 int ArtHelper::init(JNIEnv *env) {
   char api_level_str[5];
-  __system_property_set("ro.build.version.sdk", api_level_str);
+  __system_property_get("ro.build.version.sdk", api_level_str);
   int api_level = atoi(api_level_str);
   ArtHelper::api = api_level;
   JavaVM *javaVM;
@@ -119,22 +128,42 @@ int ArtHelper::init(JNIEnv *env) {
 
   LOGV("ArtHelper", "runtime ptr: %p", runtime);
   const int MAX = 2000;
-  //找到javaVmExt在 Runtime中的偏移地址
+
+  if (api_level < 30) {
+    ArtHelper::runtime_instance_ = runtime;
+  }
+  load_symbols();
+
   int offsetOfVmExt = findOffset(runtime, 0, MAX, javaVMExt);
   LOGV("ArtHelper", "offsetOfVmExt: %d", offsetOfVmExt);
   if (offsetOfVmExt < 0) {
     return -1;
   }
-  ArtHelper::runtime_instance_ =
-      reinterpret_cast<char *>(runtime) + offsetOfVmExt -
-          offsetof(PartialRuntime, java_vm_);
-  load_symbols();
+
+  if (api_level >= ANDROID_API_TIRAMISU) {
+    ArtHelper::runtime_instance_ =
+        reinterpret_cast<char *>(runtime) + offsetOfVmExt -
+            offsetof(PartialRuntimeTiramisu, java_vm_);
+    thread_list =
+        reinterpret_cast<PartialRuntimeTiramisu *>(ArtHelper::runtime_instance_)->thread_list_;
+  } else if (api_level >= ANDROID_API_R) {
+    ArtHelper::runtime_instance_ =
+        reinterpret_cast<char *>(runtime) + offsetOfVmExt -
+            offsetof(PartialRuntimeR, java_vm_);
+    thread_list = reinterpret_cast<PartialRuntimeR *>(ArtHelper::runtime_instance_)->thread_list_;
+  } else if (api_level >= ANDROID_API_P){
+    ArtHelper::runtime_instance_ =
+        reinterpret_cast<char *>(runtime) + offsetOfVmExt -
+            offsetof(PartialRuntimeP, java_vm_);
+    thread_list = reinterpret_cast<PartialRuntimeP *>(ArtHelper::runtime_instance_)->thread_list_;
+  }
+
   return 1;
 
 }
 
 void *ArtHelper::getThreadList() {
-  return reinterpret_cast<PartialRuntime *>(runtime_instance_)->thread_list_;
+  return thread_list;
 }
 
 void *
@@ -162,7 +191,7 @@ void ArtHelper::StackVisitorWalkStack(StackVisitor *visitor, bool include_transi
 }
 
 ThreadState ArtHelper::FetchState(void *thread, void *monitor_object, uint32_t *lock_owner_tid) {
-  return fetchState(thread,monitor_object,lock_owner_tid);
+  return fetchState(thread, monitor_object, lock_owner_tid);
 }
 
 // Returns the thread-specific CPU-time clock in microseconds or -1 if unavailable.
