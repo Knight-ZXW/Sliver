@@ -10,6 +10,7 @@
 #include <string>
 #include "stackvisitor.h"
 #include "shadow_frame.h"
+#include "common.h"
 namespace kbArt {
 
 //TODO 这里的偏移值 高低版本不一样， 目前只看了Android 12的,后面需要做下区分，版本兼容性
@@ -62,6 +63,8 @@ enum class ThreadState : uint8_t {
   kSuspended,                       // RUNNABLE       TS_RUNNING   suspended by GC or debugger
 };
 
+
+//Android 9
 struct PartialRuntimeP {
   void *thread_list_;
 
@@ -69,8 +72,9 @@ struct PartialRuntimeP {
 
   void *class_linker_;
 
-  void *signal_catcher_;
-
+  void* signal_catcher_;
+  // If true, the runtime will connect to tombstoned via a socket to
+  // request an open file descriptor to write its traces to.
   bool use_tombstoned_traces_;
 
   // Location to which traces must be written on SIGQUIT. Only used if
@@ -79,10 +83,26 @@ struct PartialRuntimeP {
 
   void *java_vm_;
 
-  void *jit_;
-  void *jit_code_cache_;
 };
 
+//Android 10
+struct PartialRuntimeQ {
+  void *thread_list_;
+
+  void *intern_table_;
+
+  void *class_linker_;
+
+
+  void * signal_catcher_;
+
+  void *java_vm_;
+};
+
+
+
+//Android 11
+//https://cs.android.com/android/platform/superproject/+/android-11.0.0_r40:art/runtime/runtime.h
 struct PartialRuntimeR {
   void *thread_list_;
 
@@ -96,10 +116,9 @@ struct PartialRuntimeR {
 
   void *java_vm_;
 
-  void *jit_;
-  void *jit_code_cache_;
 };
 
+//Android 13
 struct PartialRuntimeTiramisu {
     void *thread_list_;
 
@@ -115,8 +134,6 @@ struct PartialRuntimeTiramisu {
 
     void *java_vm_;
 
-    void *jit_;
-    void *jit_code_cache_;
 };
 
 
@@ -152,7 +169,6 @@ class ArtHelper {
 
  private:
   static void *runtime_instance_;
-  static int api;
 
 };
 }

@@ -25,6 +25,9 @@ typedef void (*WalkStack_t)(StackVisitor *stack_visitor, bool include_transition
 typedef void *(*SuspendThreadByPeer_t)(void *thread_list, jobject peer, SuspendReason suspendReason,
                                        bool *timed_out);
 
+typedef void *(*SuspendThreadByPeer_Q_t)(void *thread_list, jobject peer,bool request_suspension,SuspendReason suspendReason,
+                                       bool *timed_out);
+
 //_ZN3art10ThreadList23SuspendThreadByThreadIdEjNS_13SuspendReasonEPb
 typedef void *(*SuspendThreadByThreadId_t)(void *thread_list,
                                            uint32_t thread_id,

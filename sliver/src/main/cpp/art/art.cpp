@@ -14,11 +14,11 @@
 
 namespace kbArt {
 void *ArtHelper::runtime_instance_ = nullptr;
-int ArtHelper::api = 0;
 
 static WalkStack_t walk_stack = nullptr;
 
 static SuspendThreadByPeer_t suspend_thread_by_peer = nullptr;
+static SuspendThreadByPeer_Q_t suspend_thread_by_peer_Q = nullptr;
 
 static SuspendThreadByThreadId_t suspend_thread_by_thread_id = nullptr;
 
@@ -29,6 +29,8 @@ static FetchState_t fetchState = nullptr;
 static GetCpuMicroTime_t getCpuMicroTime = nullptr;
 
 static void *thread_list = nullptr;
+
+static int api_level = 0;
 
 #define ANDROID_API_P 28
 #define ANDROID_API_Q 29
@@ -61,9 +63,15 @@ int findOffset(void *start, int regionStart, int regionEnd, T target) {
 //  return 0;
 //}
 
+
+
 static int load_symbols() {
   LOGV("ArtHelper", "start load_symbols");
-  void *handle = xdl_open("/apex/com.android.art/lib64/libart.so",
+  api_level = getAndroidApiLevel();
+  const char *artPath = getLibArtPath();
+//  void *handle = xdl_open( artPath,
+//                           XDL_TRY_FORCE_LOAD);
+  void *handle = xdl_open( artPath,
                           XDL_TRY_FORCE_LOAD);
   LOGV("ArtHelper", "handle is %p", handle);
 
@@ -74,19 +82,33 @@ static int load_symbols() {
     return -1;
   }
 
-  suspend_thread_by_peer =
-      reinterpret_cast<SuspendThreadByPeer_t>(xdl_dsym(handle,
-                                                       "_ZN3art10ThreadList19SuspendThreadByPeerEP8_jobjectNS_13SuspendReasonEPb",
-                                                       nullptr));
-  if (suspend_thread_by_peer == nullptr) {
-    return -1;
-  }
+
+
   suspend_thread_by_thread_id =
       reinterpret_cast<SuspendThreadByThreadId_t>(xdl_dsym(handle,
                                                            "_ZN3art10ThreadList23SuspendThreadByThreadIdEjNS_13SuspendReasonEPb",
                                                            nullptr));
   if (suspend_thread_by_thread_id == nullptr) {
     return -1;
+  }
+
+  if (api_level>__ANDROID_API_Q__){ //TODO Android 11未支持
+    suspend_thread_by_peer =
+        reinterpret_cast<SuspendThreadByPeer_t>(xdl_dsym(handle,
+                                                         "_ZN3art10ThreadList19SuspendThreadByPeerEP8_jobjectNS_13SuspendReasonEPb",
+                                                         nullptr));
+    if (suspend_thread_by_peer == nullptr) {
+      //todo handle
+    }
+  }else{
+    suspend_thread_by_peer_Q =
+        reinterpret_cast<SuspendThreadByPeer_Q_t>(xdl_dsym(handle,
+                                                           "_ZN3art10ThreadList19SuspendThreadByPeerEP8_jobjectbNS_13SuspendReasonEPb",
+                                                           nullptr));
+    if (suspend_thread_by_peer_Q == nullptr) {
+      //todo handle
+
+    }
   }
 
   resume = reinterpret_cast<Resume_t>(xdl_dsym(handle,
@@ -103,23 +125,20 @@ static int load_symbols() {
     return -1;
   }
 
-  fetchState = reinterpret_cast<FetchState_t>(xdl_dsym(handle,
-                                                       "_ZN3art7Monitor10FetchStateEPKNS_6ThreadEPNS_6ObjPtrINS_6mirror6ObjectEEEPj",
-                                                       nullptr));
+//  fetchState = reinterpret_cast<FetchState_t>(xdl_dsym(handle,
+//                                                       "_ZN3art7Monitor10FetchStateEPKNS_6ThreadEPNS_6ObjPtrINS_6mirror6ObjectEEEPj",
+//                                                       nullptr));
   getCpuMicroTime =
       reinterpret_cast<GetCpuMicroTime_t>(xdl_dsym(handle, "_ZNK3art6Thread15GetCpuMicroTimeEv",
                                                    nullptr));
-  if (fetchState == nullptr) {
-    return -1;
-  }
+//  if (fetchState == nullptr) {
+//    return -1;
+//  }
   return 1;
 }
 
 int ArtHelper::init(JNIEnv *env) {
-  char api_level_str[5];
-  __system_property_get("ro.build.version.sdk", api_level_str);
-  int api_level = atoi(api_level_str);
-  ArtHelper::api = api_level;
+  api_level  = getAndroidApiLevel();
   JavaVM *javaVM;
   env->GetJavaVM(&javaVM);
 
@@ -132,7 +151,11 @@ int ArtHelper::init(JNIEnv *env) {
   if (api_level < 30) {
     ArtHelper::runtime_instance_ = runtime;
   }
-  load_symbols();
+  int loadSymbolResult = load_symbols();
+  if (loadSymbolResult == -1){
+    LOGE("ArtHelper", "loadSymbol failed");
+    return -1;
+  }
 
   int offsetOfVmExt = findOffset(runtime, 0, MAX, javaVMExt);
   LOGV("ArtHelper", "offsetOfVmExt: %d", offsetOfVmExt);
@@ -151,11 +174,19 @@ int ArtHelper::init(JNIEnv *env) {
         reinterpret_cast<char *>(runtime) + offsetOfVmExt -
             offsetof(PartialRuntimeR, java_vm_);
     thread_list = reinterpret_cast<PartialRuntimeR *>(ArtHelper::runtime_instance_)->thread_list_;
-  } else if (api_level >= ANDROID_API_P){
+  }
+  else if (api_level >= ANDROID_API_Q){
+    ArtHelper::runtime_instance_ =
+        reinterpret_cast<char *>(runtime) + offsetOfVmExt -
+            offsetof(PartialRuntimeQ, java_vm_);
+    thread_list = reinterpret_cast<PartialRuntimeQ *>(ArtHelper::runtime_instance_)->thread_list_;
+  }else if (api_level >= __ANDROID_API_O_MR1__){
     ArtHelper::runtime_instance_ =
         reinterpret_cast<char *>(runtime) + offsetOfVmExt -
             offsetof(PartialRuntimeP, java_vm_);
     thread_list = reinterpret_cast<PartialRuntimeP *>(ArtHelper::runtime_instance_)->thread_list_;
+  } else {
+    //TODO
   }
 
   return 1;
@@ -174,7 +205,6 @@ ArtHelper::suspendThreadByPeer(jobject peer, SuspendReason suspendReason, bool *
 void *ArtHelper::SuspendThreadByThreadId(uint32_t threadId,
                                          SuspendReason suspendReason,
                                          bool *timed_out) {
-  void *thread_list = ArtHelper::getThreadList();
   return suspend_thread_by_thread_id(thread_list, threadId, suspendReason, timed_out);
 }
 
@@ -189,7 +219,7 @@ std::string ArtHelper::PrettyMethod(void *art_method, bool with_signature) {
 void ArtHelper::StackVisitorWalkStack(StackVisitor *visitor, bool include_transitions) {
   walk_stack(visitor, include_transitions);
 }
-
+//todo
 ThreadState ArtHelper::FetchState(void *thread, void *monitor_object, uint32_t *lock_owner_tid) {
   return fetchState(thread, monitor_object, lock_owner_tid);
 }
