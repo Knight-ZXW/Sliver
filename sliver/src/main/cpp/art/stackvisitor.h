@@ -30,22 +30,13 @@ class StackVisitor {
   virtual bool VisitFrame() = 0;
 
   void *thread_ = nullptr;
-  const StackWalkKind walk_kind_ = StackWalkKind::kIncludeInlinedFrames;
+  const StackWalkKind walk_kind_ = StackWalkKind::kSkipInlinedFrames;
   ShadowFrame *cur_shadow_frame_ = nullptr;
   void **cur_quick_frame_ = nullptr;
 
   //保证有足够的空间存放其他变量; detail see:
   //https://cs.android.com/android/platform/superproject/+/master:art/runtime/stack.h
   char param[STRUCT_COMPAT] = {};
- public:
-  inline void *GetMethod() {
-    if (cur_shadow_frame_ != nullptr) {
-      return cur_shadow_frame_->method;
-    } else if (cur_quick_frame_ != nullptr) {
-      return *cur_quick_frame_;
-    }
-    return nullptr;
-  }
 };
 
 }

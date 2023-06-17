@@ -1,15 +1,13 @@
 //
 // Created by knight-zxw on 2022/12/31.
 //
-#include "stackvisitor.h"
 #include "art.h"
-#include "art_method.h"
 #include "logger.h"
 #include "fetch_stack_visitor.h"
 using namespace kbArt;
 
 bool FetchStackVisitor::VisitFrame() {
-  void *method = GetMethod();
+  void *method = ArtHelper::GetCurMethodOfVisitor(this);
   auto *artMethod = static_cast<ArtMethod *>(method);
   if (artMethod == nullptr || artMethod->IsRuntimeMethod()) {
     return true;

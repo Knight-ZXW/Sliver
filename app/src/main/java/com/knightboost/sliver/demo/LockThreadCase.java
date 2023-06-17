@@ -6,17 +6,6 @@ public class LockThreadCase {
     private static final Object lock = new Object();
 
     public static Thread targetThread(){
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    synchronized (lock){
-                        try {
-                            Thread.sleep(10_000);
-                        } catch (InterruptedException e) {
-                        }
-                    }
-                }
-            }).start();
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {

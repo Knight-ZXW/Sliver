@@ -167,6 +167,8 @@ class ArtHelper {
 
   static uint64_t GetCpuMicroTime(void *thread);
 
+  static void* GetCurMethodOfVisitor(void* stackVisitor);
+
  private:
   static void *runtime_instance_;
 

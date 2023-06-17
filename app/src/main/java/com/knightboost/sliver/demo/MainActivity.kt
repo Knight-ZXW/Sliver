@@ -31,8 +31,9 @@ class MainActivity : AppCompatActivity() {
             .setOnClickListener {
                 val methodFrames = Sliver.getMethodFrames(Looper.getMainLooper().thread)
                 val stackTraceBySliver = Sliver.prettyMethodsAsString(methodFrames);
-                Log.e("sliver","主线程采集主线程调用栈 \n$stackTraceBySliver")
+                Log.e("sliver","stack\n$stackTraceBySliver")
             }
+
 
         Build.VERSION_CODES.P
         findViewById<View>(R.id.btn_trace_mainThread)

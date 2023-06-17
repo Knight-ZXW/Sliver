@@ -11,8 +11,8 @@
 #include <sys/system_properties.h>
 #include "xdl.h"
 #include "art_util.h"
-
 namespace kbArt {
+
 void *ArtHelper::runtime_instance_ = nullptr;
 
 static WalkStack_t walk_stack = nullptr;
@@ -31,6 +31,8 @@ static GetCpuMicroTime_t getCpuMicroTime = nullptr;
 static void *thread_list = nullptr;
 
 static int api_level = 0;
+
+static void* (*StackVisitorGetMethod)(void*) = nullptr;
 
 #define ANDROID_API_P 28
 #define ANDROID_API_Q 29
@@ -128,6 +130,11 @@ static int load_symbols() {
 //  fetchState = reinterpret_cast<FetchState_t>(xdl_dsym(handle,
 //                                                       "_ZN3art7Monitor10FetchStateEPKNS_6ThreadEPNS_6ObjPtrINS_6mirror6ObjectEEEPj",
 //                                                       nullptr));
+
+ StackVisitorGetMethod = reinterpret_cast<void* (*)(void*)>(xdl_dsym(handle,
+                                                                    "_ZNK3art12StackVisitor9GetMethodEv",
+                                                                    nullptr));
+
   getCpuMicroTime =
       reinterpret_cast<GetCpuMicroTime_t>(xdl_dsym(handle, "_ZNK3art6Thread15GetCpuMicroTimeEv",
                                                    nullptr));
@@ -227,6 +234,10 @@ ThreadState ArtHelper::FetchState(void *thread, void *monitor_object, uint32_t *
 // Returns the thread-specific CPU-time clock in microseconds or -1 if unavailable.
 uint64_t ArtHelper::GetCpuMicroTime(void *thread) {
   return getCpuMicroTime(thread);
+}
+
+void *ArtHelper::GetCurMethodOfVisitor(void *stackVisitor) {
+  return StackVisitorGetMethod(stackVisitor);
 }
 
 }
